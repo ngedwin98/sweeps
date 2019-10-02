@@ -10,4 +10,4 @@ with open(path.join(rf,'params.json')) as param_file:
 a = params['param']
 
 print(a)
-time.sleep(25)
+time.sleep(60)

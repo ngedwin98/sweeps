@@ -54,12 +54,29 @@ def run_sweep(interp, sim, script, num_procs, rerun_failed=False, rfs=None):
         return print("Aborting run")
     # Start the run
     os.rename(path.join(sim,runfile), path.join(sim,'run',runfile))
-    for rf in queued_rfs:
-        run_rf(path.join(sim,"rfs",rf), sim, interp, script, script_hash)
-    # pool = multiprocessing.Pool(processes=num_procs)
-    # pool.imap_unordered(queued_rfs, None)
+    def handle_sigterm(rc, *args):
+        print("Sweep terminated by external SIGNAL "+str(rc)+".")
+        pool.terminate()
+        pool.join()
+        raise SystemExit(rc)
+    def handle_sigint(*args):
+        print("\nSweep interrupted.")
+        pool.terminate()
+        pool.join()
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    signal.signal(signal.SIGINT, handle_sigint)
+    def init():
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    pool = multiprocessing.Pool(processes=num_procs, initializer=init)
+    args = [(rf, sim, interp, script, script_hash) for rf in queued_rfs]
+    pool.imap_unordered(run_rf, args, chunksize=1)
+    pool.close()
+    print("Sweep started. Press CTRL+C to interrupt.")
+    pool.join()
 
-def run_rf(rf, sim, interp, script, script_hash):
+def run_rf(args):
+    rf, sim, interp, script, script_hash = args
+    rf = path.join(sim, "rfs", rf)
     # Open log and status files
     log = open(path.join(rf,'log.txt'), 'a+')
     status = open(path.join(rf,'status.txt'), 'a+')
@@ -67,30 +84,31 @@ def run_rf(rf, sim, interp, script, script_hash):
     # Check integrity of script
     if '@'.join((script,file_hash(path.join(sim,"bin",script)))) != script_hash:
         raise AssertionError("Incorrect hash for script "+script)
-    # Define signal and exit handlers
-    def sig_handler(rc, *args):
-        write(log, "SIGNAL "+str(rc)+" RECEIVED: EXITING")
-        write(status, generate_status("  FAILED",script_hash))
-        process.kill()
-        raise SystemExit(rc)
-    signal.signal(signal.SIGINT, sig_handler)
-    signal.signal(signal.SIGQUIT, sig_handler)
-    signal.signal(signal.SIGTERM, sig_handler)
-    def exit_handler():
+    # Run the process
+    try:
+        process = subprocess.Popen([interp, path.join(sim,"bin",script), rf],\
+            stdout=log, stderr=subprocess.STDOUT)
+        # # Define signal and exit handlers
+        def sig_handler(rc, *args):
+            write(log, "SIGNAL "+str(rc)+" RECEIVED: EXITING")
+            write(status, generate_status("  FAILED",script_hash))
+            process.kill()
+            raise SystemExit(rc)
+        signal.signal(signal.SIGQUIT, sig_handler)
+        signal.signal(signal.SIGTERM, sig_handler)
+        write(status, generate_status(" STARTED",script_hash))
+        rc = process.wait()
+        if rc == 0:
+            write(status, generate_status("FINISHED",script_hash))
+        else:
+            write(log, "SCRIPT TERMINATED WITH EXIT CODE "+str(rc))
+            write(status, generate_status("  FAILED",script_hash))
+    except:
+        raise
+    finally:
         write(log, asheader("LOG FILE CLOSED "+get_timestamp()))
         log.close()
         status.close()
-    atexit.register(exit_handler)
-    # Run the process
-    process = subprocess.Popen([interp, path.join(sim,"bin",script), rf],\
-        stdout=log, stderr=subprocess.STDOUT)
-    write(status, generate_status(" STARTED",script_hash))
-    rc = process.wait()
-    if rc == 0:
-        write(status, generate_status("FINISHED",script_hash))
-    else:
-        write(log, "SCRIPT TERMINATED WITH EXIT CODE "+str(rc))
-        write(status, generate_status("  FAILED",script_hash))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
