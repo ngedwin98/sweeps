@@ -1,18 +1,11 @@
 import argparse
-import os.path as path
-import os, shutil
-import datetime
-import atexit, signal
-import subprocess
-import multiprocessing
+import os, os.path as path, shutil
+import signal
+import subprocess, multiprocessing
 
-from sweep_utils import write, get_script_id, get_timestamp, asheader
-from sweep_utils import Status, collect_rf_status, generate_status
+from .sweep_utils import write, get_script_id, get_timestamp, asheader
+from .sweep_utils import Status, collect_rf_status, generate_status
 
-# script must be a relative path starting at sim/bin
-# rfs specified in a file relative path from sim, should contain rf hashes
-# relative to sim/rfs
-# TODO: Implement and test piping of rf file (and saving)
 def run_sweep(interp, sim, script, num_procs, rerun_failed=False, rf_file=None):
     timestamp = get_timestamp()
     # Determine status of all requested rfs
@@ -111,13 +104,3 @@ def run_rf(args):
         write(log, asheader("LOG FILE CLOSED "+get_timestamp()))
         log.close()
         status.close()
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('rf', type=str, help="Run folder name")
-    parser.add_argument('script', type=str, help="Script to run")
-    parser.add_argument('--interpreter', type=str, default='python',\
-        help="Interpreter for the script")
-    args = parser.parse_args()
-    run_sweep(args.interpreter, args.sim, args.script, args.num_procs,\
-        args.rerun_failed, args.rfs)

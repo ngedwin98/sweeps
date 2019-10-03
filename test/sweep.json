@@ -1,0 +1,17 @@
+{
+    "a":
+    {
+        "sweep_type": "constant",
+        "value": 1
+    },
+    "b":
+    {
+        "sweep_type": "manual",
+        "value": [0.1, 0.5]
+    },
+    "c":
+    {
+        "sweep_type": "linspace",
+        "value": [0.0, 100.0, 6]
+    }
+}
