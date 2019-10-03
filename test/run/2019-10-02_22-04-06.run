@@ -1,0 +1,10 @@
+# RUN FILE FOR SWEEP GENERATED AT 2019-10-02_22-04-06
+# script: script.py@cf96b286e9cc73caf7cedbfefaaf13fb
+# rerun_failed: False
+# rfs: All
+# -------------------------REQUESTED RFs QUEUED TO RUN--------------------------
+z
+x
+y
+## ----------------------REQUESTED RFs WITH INVALID STATUS----------------------
+### ------------------------REQUESTED RFs STILL RUNNING-------------------------

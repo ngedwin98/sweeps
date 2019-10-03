@@ -17,10 +17,11 @@ def write(file, message):
     file.write(message+'\n')
     file.flush()
 
-def file_hash(script_path):
-    with open(script_path) as script:
-        contents = script.read()
-        return hashlib.md5(contents.encode('utf-8')).hexdigest()
+def get_script_id(script, sim):
+    script_path = path.join(sim, "bin", script)
+    with open(script_path) as file:
+        contents = file.read()
+        return script + "@" + hashlib.md5(contents.encode('utf-8')).hexdigest()
 
 class Status(enum.Enum):
     NEW = 0
@@ -29,15 +30,15 @@ class Status(enum.Enum):
     RUNNING = 2
     INVALID = 3
 
-def generate_status(action, script_hash):
-    return " | ".join((action, get_timestamp(), script_hash))
+def generate_status(action, script_id):
+    return " | ".join((action, get_timestamp(), script_id))
 
-def check_status(rf, script_hash):
-    with open(path.join(rf,"status.txt")) as file:
+def check_status(rf, script, sim):
+    with open(path.join(sim,'rfs',rf,'status.txt')) as file:
         status = Status.NEW
         for line in file:
-            action, _, script = (s.strip() for s in line.split('|'))
-            if script != script_hash:
+            action, _, script_id = (s.strip() for s in line.split('|'))
+            if script_id != get_script_id(script,sim):
                 continue
             if status in (Status.NEW, Status.FAILED, Status.FINISHED):
                 if action == "STARTED":
@@ -53,14 +54,9 @@ def check_status(rf, script_hash):
                     status = Status.INVALID
     return status
 
-def collect_rf_status(sim, script_hash):
+def collect_rf_status(script, sim):
     status_table = {e : set() for e in Status}
-    rfs_path = path.join(sim,"rfs")
-    for rf in os.listdir(rfs_path):
-        status = check_status(path.join(rfs_path,rf), script_hash)
+    for rf in os.listdir(path.join(sim,'rfs')):
+        status = check_status(rf, script, sim)
         status_table[status].add(rf)
     return status_table
-
-# Create useful report of statuses
-def generate_report():
-    pass
