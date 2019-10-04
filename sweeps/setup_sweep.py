@@ -5,9 +5,9 @@ import itertools
 
 from .sweep_utils import get_timestamp
 
-def create_rfs(sweep, sim):
+def create_rfs(sim, sweep, **kwargs):
     sweep_file = path.join(sim,sweep)
-    for rf, params in _readsweep(sweep_file):
+    for rf, params in read_sweep(sweep_file):
         rf_path = path.join(sim,'rfs',rf)
         if not path.exists(rf_path):
             os.mkdir(rf_path)
@@ -16,23 +16,16 @@ def create_rfs(sweep, sim):
     sweep = get_timestamp() + '.create.json'
     shutil.copyfile(sweep_file, path.join(sim,'history',sweep))
 
-def delete_rfs(sweep, sim):
+def delete_rfs(sim, sweep, **kwargs):
     sweep_file = path.join(sim,sweep)
-    for rf,_ in _readsweep(sweep_file): #TODO: Check equality of params.json?
+    for rf,_ in read_sweep(sweep_file): #TODO: Check equality of params.json?
         rf_path = path.join(sim,'rfs',rf)
         if path.exists(rf_path):
             shutil.rmtree(rf_path)
     sweep = get_timestamp() + '.delete.json'
     shutil.copyfile(sweep_file, path.join(sim,'history',sweep))
 
-def export_rfs(sweep, sim, rfs=None):
-    if rfs_file is None:
-        rfs_file = path.join(sim, get_timestamp(), ".rfs")
-    with open(path.join(sim,rfs), "w+") as file:
-        for rf,_ in _readsweep(path.join(sim,sweep)):
-            file.write(rf + "\n")
-
-def _readsweep(sweep_file):
+def read_sweep(sweep_file):
     sweep = json.load(sweep_file)
     const_vars = dict()
     sweep_vars = []

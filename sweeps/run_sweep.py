@@ -5,16 +5,17 @@ import subprocess, multiprocessing
 
 from .sweep_utils import write, get_script_id, get_timestamp, asheader
 from .sweep_utils import Status, collect_rf_status, generate_status
+from .setup_sweep import read_sweep
 
-def run_sweep(interp, sim, script, num_procs, rerun_failed=False, rf_file=None):
+def run_sweep(sim, prog, script, num_proc, from_sweep=None, rerun_failed=False,\
+    **kwargs):
     timestamp = get_timestamp()
     # Determine status of all requested rfs
     rf_status = collect_rf_status(script, sim)
-    if rf_file is not None:
-        with open(path.join(sim,rf_file)) as file:
-            rfs = [l for l in file.readline() if not l.startswith('#')]
-            for status in Status:
-                rf_status[status].intersection_update(rfs)
+    if from_sweep is not None:
+        rfs = [rf for rf,_ in read_sweep(path.join(sim,from_sweep))]
+        for status in Status:
+            rf_status[status].intersection_update(rfs)
     queued_rfs = set(rf_status[Status.NEW])
     if rerun_failed:
         queued_rfs.update(rf_status[Status.FAILED])
@@ -24,7 +25,7 @@ def run_sweep(interp, sim, script, num_procs, rerun_failed=False, rf_file=None):
         write(run, "# RUN FILE FOR SWEEP GENERATED AT " + timestamp)
         write(run, "# script: " + get_script_id(script,sim))
         write(run, "# rerun_failed: " + str(rerun_failed))
-        write(run, "# rfs: " + (rf_file if rf_file else "All"))
+        write(run, "# rfs: " + (from_sweep if from_sweep else "All"))
         write(run, asheader("REQUESTED RFs QUEUED TO RUN", "# "))
         for rf in queued_rfs:
             write(run, rf)
@@ -58,12 +59,12 @@ def run_sweep(interp, sim, script, num_procs, rerun_failed=False, rf_file=None):
     signal.signal(signal.SIGINT, handle_signal)
     # Start the sweep
     os.rename(path.join(sim,runfile), path.join(sim,'run',runfile))
-    if rf_file is not None:
-        os.rename(path.join(sim,rf_file), path.join(sim,'run',rf_file))
+    if from_sweep is not None:
+        os.rename(path.join(sim,from_sweep), path.join(sim,'run',from_sweep))
     shutil.copyfile(path.join(sim,'bin',script),\
         path.join(sim,'run',timestamp+'.script'))
-    pool = multiprocessing.Pool(processes=num_procs)
-    args = [(rf, sim, interp, script) for rf in queued_rfs]
+    pool = multiprocessing.Pool(processes=num_proc)
+    args = [(rf, sim, prog, script) for rf in queued_rfs]
     pool.imap_unordered(run_rf, args, chunksize=1)
     pool.close()
     print("Sweep started. Press CTRL+C to interrupt.")
