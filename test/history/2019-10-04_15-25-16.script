@@ -7,8 +7,9 @@ rf = sys.argv[1]
 
 with open(path.join(rf,'params.json')) as param_file:
     params = json.load(param_file)
-a = params['param']
+a = params['a']
+b = params['b']
+c = params['c']
 
-print(a)
-print(1/a)
+print(params)
 time.sleep(30)

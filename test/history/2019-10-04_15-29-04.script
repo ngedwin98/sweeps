@@ -12,4 +12,4 @@ b = params['b']
 c = params['c']
 
 print(params)
-time.sleep(60)
+time.sleep(30)

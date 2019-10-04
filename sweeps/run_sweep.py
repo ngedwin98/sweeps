@@ -3,44 +3,45 @@ import os, os.path as path, shutil
 import signal
 import subprocess, multiprocessing
 
-from .sweep_utils import write, get_script_id, get_timestamp, asheader
+from .sweep_utils import get_timestamp, asheader, write, get_script_id
 from .sweep_utils import Status, collect_rf_status, generate_status
 from .setup_sweep import read_sweep
 
-def run_sweep(sim, prog, script, num_proc, from_sweep=None, rerun_failed=False,\
-    **kwargs):
+def run_sweep(project, prog, script, num_procs, sweep=None, rerun_failed=False):
     timestamp = get_timestamp()
     # Determine status of all requested rfs
-    rf_status = collect_rf_status(script, sim)
-    if from_sweep is not None:
-        rfs = [rf for rf,_ in read_sweep(path.join(sim,from_sweep))]
+    rf_status = collect_rf_status(script, project)
+    if sweep is not None:
+        sweep_file = path.join(project,sweep)
+        rfs = [rf for rf,_ in read_sweep(sweep_file)]
         for status in Status:
             rf_status[status].intersection_update(rfs)
     queued_rfs = set(rf_status[Status.NEW])
     if rerun_failed:
         queued_rfs.update(rf_status[Status.FAILED])
     # Write summary of rfs status to file
-    runfile = timestamp+'.run'
-    with open(path.join(sim,runfile), 'a+') as run:
-        write(run, "# RUN FILE FOR SWEEP GENERATED AT " + timestamp)
-        write(run, "# script: " + get_script_id(script,sim))
-        write(run, "# rerun_failed: " + str(rerun_failed))
-        write(run, "# rfs: " + (from_sweep if from_sweep else "All"))
-        write(run, asheader("REQUESTED RFs QUEUED TO RUN", "# "))
+    run = timestamp+'.run'
+    run_file = path.join(project,run)
+    with open(run_file, 'a+') as file:
+        write(file, "# RUN FILE FOR SWEEP GENERATED AT " + timestamp)
+        write(file, "# script: " + get_script_id(script,project))
+        write(file, "# rerun_failed: " + str(rerun_failed))
+        write(file, "# rfs: " + (sweep if sweep else "All"))
+        write(file, asheader("REQUESTED RFs QUEUED TO RUN", "# "))
         for rf in queued_rfs:
-            write(run, rf)
-        write(run, asheader("REQUESTED RFs WITH INVALID STATUS", "## "))
+            write(file, rf)
+        write(file, asheader("REQUESTED RFs WITH INVALID STATUS", "## "))
         for rf in rf_status[Status.INVALID]:
-            write(run, "## " + rf)
-        write(run, asheader("REQUESTED RFs STILL RUNNING", "### "))
+            write(file, "## " + rf)
+        write(file, asheader("REQUESTED RFs STILL RUNNING", "### "))
         for rf in rf_status[Status.RUNNING]:
-            write(run, "### " + rf)
+            write(file, "### " + rf)
     # Prompt for approval
     if rf_status[Status.INVALID]:
         print("Warning: Found rfs with status INVALID which were ignored")
     if rf_status[Status.RUNNING]:
         print("Warning: Found rfs with status RUNNING which were ignored")
-    approval = input("Run file written to " + runfile + " "
+    approval = input("Run file written to " + run + " "
          + "("+str(len(queued_rfs)) + " rfs queued to run).\nProceed (y/N)? ")
     if not approval == 'y':
         return print("Aborting sweep.")
@@ -57,25 +58,27 @@ def run_sweep(sim, prog, script, num_proc, from_sweep=None, rerun_failed=False,\
     signal.signal(signal.SIGQUIT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
+    # Copy to history
+    os.rename(run_file, path.join(project,'history',run))
+    if sweep is not None:
+        os.rename(sweep_file, path.join(project,'history',sweep))
+    shutil.copyfile(path.join(project,'bin',script),\
+        path.join(project,'history',timestamp+'.script'))
     # Start the sweep
-    os.rename(path.join(sim,runfile), path.join(sim,'run',runfile))
-    if from_sweep is not None:
-        os.rename(path.join(sim,from_sweep), path.join(sim,'run',from_sweep))
-    shutil.copyfile(path.join(sim,'bin',script),\
-        path.join(sim,'run',timestamp+'.script'))
-    pool = multiprocessing.Pool(processes=num_proc)
-    args = [(rf, sim, prog, script) for rf in queued_rfs]
+    pool = multiprocessing.Pool(processes=num_procs)
+    args = [(project, prog, script, rf) for rf in queued_rfs]
     pool.imap_unordered(run_rf, args, chunksize=1)
     pool.close()
+    # Wait for sweep to finish or quit
     print("Sweep started. Press CTRL+C to interrupt.")
     pool.join()
     print("Sweep completed.")
 
 def run_rf(args):
-    rf, sim, interp, script = args
-    rf_path = path.join(sim, 'rfs', rf)
-    script_path = path.join(sim, 'bin', script)
-    script_id = get_script_id(script, sim)
+    project, prog, script, rf = args
+    rf_path = path.join(project, 'rfs', rf)
+    script_path = path.join(project, 'bin', script)
+    script_id = get_script_id(script, project)
     # Open log and status files
     log = open(path.join(rf_path,'log.txt'), 'a+')
     status = open(path.join(rf_path,'status.txt'), 'a+')
@@ -88,7 +91,7 @@ def run_rf(args):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, handle_signal)
     # Run the script
-    process = subprocess.Popen([interp, script_path, rf_path],\
+    process = subprocess.Popen([prog, script_path, rf_path],\
         stdout=log, stderr=subprocess.STDOUT)
     write(status, generate_status(" STARTED",script_id))
     try:

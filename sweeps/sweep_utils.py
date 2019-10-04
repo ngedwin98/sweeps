@@ -4,13 +4,13 @@ import os
 import os.path as path
 import enum
 
+def get_timestamp():
+    return datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
 def asheader(message, prefix="", length=80, line='-'):
     spaces = length - len(prefix) - len(message)
     n = spaces // 2
     return prefix + line*n + message + line*(spaces-n)
-
-def get_timestamp():
-    return datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
 def write(file, message):
     file.flush()
@@ -34,7 +34,7 @@ def generate_status(action, script_id):
     return " | ".join((action, get_timestamp(), script_id))
 
 def check_status(rf, script, sim):
-    with open(path.join(sim,'rfs',rf,'status.txt')) as file:
+    with open(path.join(sim,'rfs',rf,'status.txt'), 'r+') as file:
         status = Status.NEW
         for line in file:
             action, _, script_id = (s.strip() for s in line.split('|'))

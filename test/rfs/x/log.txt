@@ -1,8 +1,0 @@
-----------------------LOG FILE OPENED 2019-10-02_22-04-08-----------------------
-0
-Traceback (most recent call last):
-  File "test/bin/script.py", line 13, in <module>
-    print(1/a)
-ZeroDivisionError: division by zero
-SCRIPT RETURNED WITH EXIT CODE 1
-----------------------LOG FILE CLOSED 2019-10-02_22-04-08-----------------------

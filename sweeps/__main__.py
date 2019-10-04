@@ -1,34 +1,46 @@
-import sweeps
 import argparse
 import multiprocessing
 
+from sweeps import create_rfs, delete_rfs, run_sweep
+
 def main():
-    # Set up 
-    parser = argparse.ArgumentParser(prog="sweeps",\
-        description="Run parameter sweeps")
-    parser.add_argument('sim', help="Sweep directory")
-    subparsers = parser.add_subparsers(required=True)
-    setup = subparsers.add_parser('setup', help="Setup sweep")
-    run = subparsers.add_parser('run', help="Run sweep")
-    # setup command
-    setup.add_argument('sweep_file', "Sweep .json file")
-    subparsers = setup.add_subparsers(required=True)
-    create = subparsers.add_parser('create', help="Create rfs")
-    create.set_defaults(func=sweeps.create_rfs)
-    delete = subparsers.add_parser('delete', help="Delete rfs")
-    delete.set_defaults(func=sweeps.delete_rfs)
-    # run command
-    run.add_argument('program', help="Interpreter for script")
-    run.add_argument('script', help="Run script location relative to sim/bin")
-    run.add_argument('num_proc', type=int, default=multiprocessing.cpu_count(),\
-        help="Number of processes")
-    run.add_argument('--from_sweep', help="Restrict rfs to this sweep file")
-    run.add_argument('--rerun-failed', action='store_true',\
-        help="Rerun failed rfs")
-    run.set_defaults(func=sweeps.run_sweep)
-    # Execute
-    args = parser.parse_args()
-    args.func(**args)
+    # Define command-line parser
+    sweeps = argparse.ArgumentParser(prog="sweeps",\
+        description="PYTHON UTILITY FOR MANAGING PARAMETER SWEEPS")
+    sweeps.add_argument('project', metavar="PROJECT",\
+        help="project directory")
+    subcommands = sweeps.add_subparsers(required=True, dest='subcommand',\
+        title="available subcommands")
+    create = subcommands.add_parser('create',\
+        description="Create rfs from a sweep file")
+    create.add_argument('sweep_file', metavar="SWEEP_FILE",\
+        help="JSON file specifying sweep")
+    delete = subcommands.add_parser('delete',\
+        description="Delete rfs from a sweep file")
+    delete.add_argument('sweep_file', metavar="SWEEP_FILE",\
+        help="JSON file specifying sweep")
+    run = subcommands.add_parser('run',\
+        description="Run a parameter sweep based on existing rfs")
+    run.add_argument('program', metavar="PROGRAM",\
+        help="interpreter for SCRIPT")
+    run.add_argument('script', metavar="SCRIPT",\
+        help="location of script relative to PROJECT")
+    run.add_argument('--procs', type=int, default=multiprocessing.cpu_count(),\
+        help="number of processes to use")
+    run.add_argument('--sweep_file', metavar="FILE",\
+        help="restrict to rfs consistent with creation from JSON file FILE; "+
+        "location relative to PROJECT")
+    run.add_argument('--rerun_failed', action='store_true',\
+        help="rerun failed rfs")
+    # Execute command
+    args = sweeps.parse_args()
+    if args.subcommand == 'create':
+        create_rfs(args.project, args.sweep_file)
+    elif args.subcommand == 'delete':
+        delete_rfs(args.project, args.sweep_file)
+    elif args.subcommand == 'run':
+        run_sweep(args.project, args.program, args.script, args.procs,\
+            args.sweep_file, args.rerun_failed)
 
 if __name__ == "__main__":
     main()

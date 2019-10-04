@@ -6,8 +6,8 @@
     },
     "b":
     {
-        "sweep_type": "constant",
-        "value": 0.5
+        "sweep_type": "manual",
+        "value": [0.1, 0.5]
     },
     "c":
     {
