@@ -13,6 +13,8 @@ def create_rfs(sim, sweep):
             os.mkdir(rf_path)
             with open(path.join(rf_path,'params.json'), 'w+') as file:
                 file.write(params)
+            open(path.join(rf_path,'status.txt'),'w+').close()
+            open(path.join(rf_path,'log.txt'),'w+').close()
     sweep = get_timestamp() + '.create.json'
     history_path = path.join(sim,'history')
     if not path.exists(history_path):

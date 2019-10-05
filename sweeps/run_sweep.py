@@ -22,25 +22,28 @@ def run_sweep(project, prog, script, num_procs, sweep=None, rerun_failed=False):
     # Write summary of rfs status to file
     run = timestamp+'.run'
     run_file = path.join(project,run)
-    with open(run_file, 'a+') as file:
+    script_id = get_script_id(script,project)
+    with open(run_file, 'a') as file:
         write(file, "# RUN FILE FOR SWEEP GENERATED AT " + timestamp)
-        write(file, "# script: " + get_script_id(script,project))
+        write(file, "# script: " + script_id)
         write(file, "# rerun_failed: " + str(rerun_failed))
         write(file, "# rfs: " + (sweep if sweep else "All"))
         write(file, asheader("REQUESTED RFs QUEUED TO RUN", "# "))
-        for rf in queued_rfs:
+        for rf in sorted(queued_rfs):
             write(file, rf)
         write(file, asheader("REQUESTED RFs WITH INVALID STATUS", "## "))
-        for rf in rf_status[Status.INVALID]:
+        for rf in sorted(rf_status[Status.INVALID]):
             write(file, "## " + rf)
-        write(file, asheader("REQUESTED RFs STILL RUNNING", "### "))
-        for rf in rf_status[Status.RUNNING]:
+        write(file, asheader("REQUESTED RFs QUEUED OR RUNNING", "### "))
+        for rf in sorted(rf_status[Status.QUEUED]):
+            write(file, "### " + rf)
+        for rf in sorted(rf_status[Status.RUNNING]):
             write(file, "### " + rf)
     # Prompt for approval
     if rf_status[Status.INVALID]:
-        print("Warning: Found rfs with status INVALID which were ignored")
-    if rf_status[Status.RUNNING]:
-        print("Warning: Found rfs with status RUNNING which were ignored")
+        print("Warning: Found rfs with status INVALID (ignored)")
+    if rf_status[Status.RUNNING] or rf_status[Status.QUEUED]:
+        print("Warning: Found rfs with status QUEUED or RUNNING (ignored)")
     approval = input("Run file written to " + run + " "
          + "("+str(len(queued_rfs)) + " rfs queued to run).\nProceed (y/N)? ")
     if not approval == 'y':
@@ -54,6 +57,9 @@ def run_sweep(project, prog, script, num_procs, sweep=None, rerun_failed=False):
         print(": Terminating processes.")
         pool.terminate()
         pool.join()
+        for rf in queued_rfs:
+            with open(path.join(project,'rfs',rf,'status.txt'), 'a') as status:
+                write(status, generate_status("  KILLED",script_id))
         raise SystemExit(rc)
     signal.signal(signal.SIGQUIT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
@@ -64,6 +70,9 @@ def run_sweep(project, prog, script, num_procs, sweep=None, rerun_failed=False):
         os.rename(sweep_file, path.join(project,'history',sweep))
     shutil.copyfile(path.join(project,'bin',script),\
         path.join(project,'history',timestamp+'.script'))
+    for rf in queued_rfs:
+        with open(path.join(project,'rfs',rf,'status.txt'), 'a') as status:
+            write(status, generate_status("  QUEUED",script_id))
     # Start the sweep
     pool = multiprocessing.Pool(processes=num_procs)
     args = [(project, prog, script, rf) for rf in queued_rfs]
@@ -80,8 +89,8 @@ def run_rf(args):
     script_path = path.join(project, 'bin', script)
     script_id = get_script_id(script, project)
     # Open log and status files
-    log = open(path.join(rf_path,'log.txt'), 'a+')
-    status = open(path.join(rf_path,'status.txt'), 'a+')
+    log = open(path.join(rf_path,'log.txt'), 'a')
+    status = open(path.join(rf_path,'status.txt'), 'a')
     write(log, asheader("LOG FILE OPENED "+get_timestamp()))
     # Define signal handlers
     def handle_signal(rc, *args):

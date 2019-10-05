@@ -24,25 +24,33 @@ def get_script_id(script, sim):
         return script + "@" + hashlib.md5(contents.encode('utf-8')).hexdigest()
 
 class Status(enum.Enum):
-    NEW = 0
-    FAILED = -1
+    RUNNING = 3
+    QUEUED = 2
     FINISHED = 1
-    RUNNING = 2
-    INVALID = 3
+    FAILED = -1
+    NEW = 0
+    INVALID = 4
 
 def generate_status(action, script_id):
     return " | ".join((action, get_timestamp(), script_id))
 
 def check_status(rf, script, sim):
-    with open(path.join(sim,'rfs',rf,'status.txt'), 'r+') as file:
+    with open(path.join(sim,'rfs',rf,'status.txt'), 'r') as file:
         status = Status.NEW
         for line in file:
             action, _, script_id = (s.strip() for s in line.split('|'))
             if script_id != get_script_id(script,sim):
                 continue
-            if status in (Status.NEW, Status.FAILED, Status.FINISHED):
+            if status is Status.NEW:
+                if action == "QUEUED":
+                    status = Status.QUEUED
+                else:
+                    status = Status.INVALID
+            elif status is Status.QUEUED:
                 if action == "STARTED":
                     status = Status.RUNNING
+                elif action == "KILLED":
+                    status = Status.NEW
                 else:
                     status = Status.INVALID
             elif status is Status.RUNNING:
@@ -50,6 +58,13 @@ def check_status(rf, script, sim):
                     status = Status.FINISHED
                 elif action == "FAILED":
                     status = Status.FAILED
+                else:
+                    status = Status.INVALID
+            elif status in (Status.FAILED, Status.FINISHED):
+                if action == "QUEUED":
+                    status = Status.QUEUED
+                elif action == "KILLED":
+                    status = status
                 else:
                     status = Status.INVALID
     return status
@@ -60,3 +75,9 @@ def collect_rf_status(script, sim):
         status = check_status(rf, script, sim)
         status_table[status].add(rf)
     return status_table
+
+def query_status(script, sim):
+    print("SWEEP SUMMARY: " + get_script_id(script, sim))
+    for status,rfs in collect_rf_status(script,sim).items():
+        print(str(status.name).rjust(13) + ": "
+            + (str(len(rfs)) if len(rfs)>0 else "----").rjust(4))
