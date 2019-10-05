@@ -1,8 +1,16 @@
+import sys, os, os.path as path
+import argparse
 import datetime
-import hashlib
-import os
-import os.path as path
 import enum
+import hashlib
+import json
+
+def read_params(params=None):
+    if params is None:
+        rf = sys.argv[1]
+        with open(path.join(rf,'params.json')) as param_file:
+            params = json.load(param_file)
+    return argparse.Namespace(**params)
 
 def get_timestamp():
     return datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
