@@ -6,7 +6,7 @@ import hashlib
 import json
 
 def read_params(params=None):
-    if params is None:
+    if params is None or len(sys.argv) > 1:
         rf = sys.argv[1]
         with open(path.join(rf,'params.json')) as param_file:
             params = json.load(param_file)
